@@ -3,6 +3,7 @@ const { exit } = require('process')
 const { Opcode } = require('./opcode.js')
 const { RegisterName } = require('./registers.js')
 const { exec } = require('child_process')
+const { ifError } = require('assert')
 
 global.CurrentOpcode = undefined
 global.CurrentDest = undefined
@@ -10,6 +11,7 @@ global.CurrentSrc = undefined
 global.DataFieldPresent = false
 global.IsDestMemoryOperator = false
 global.IsSrcMemoryOperator = false
+global.ImmediateOperator = false
 global.CurrentLineNumber = 0
 
 RemoveOutputFile = () =>
@@ -49,7 +51,7 @@ class Assembler {
             exit(3)
         }
 
-        this.OpcodeMode = IsDestMemoryOperator
+        this.OpcodeMode = IsDestMemoryOperator | IsSrcMemoryOperator
         if (!this.OpcodeMode)
             this.OpcodeMode = 3
         else
@@ -60,12 +62,12 @@ class Assembler {
         this.RegisterIndexDest = Object.keys(RegisterName).indexOf(dest)
         this.RegisterIndexSrc = Object.keys(RegisterName).indexOf(src)
 
-        // console.log(this.RegisterIndex)
-
-        if ((this.RegisterIndexDest == -1 && opcode_args >= 1) || (this.RegisterIndexSrc == -1 && opcode_args == 2)) {
-            console.error('1Invalid operand (Line: %d)', Number(global.CurrentLineNumber))
-            RemoveOutputFile()
-            exit(3)
+        if (!global.ImmediateOperator) {
+            if ((this.RegisterIndexDest == -1 && opcode_args >= 1) || (this.RegisterIndexSrc == -1 && opcode_args == 2)) {
+                console.error('Invalid operand (Line: %d)', Number(global.CurrentLineNumber))
+                RemoveOutputFile()
+                exit(3)
+            }
         }
 
         if ((this.RegisterIndexDest > 7 && this.RegisterIndexDest < 15) || (this.RegisterIndexSrc > 7 && this.RegisterIndexSrc < 15))
@@ -112,10 +114,18 @@ class Assembler {
                         this.DataFieldPresent = true
                     }
 
-                    this.FinalCpuInstruction = new Int8Array(opcode_len)
-                    if (!this.DataFieldPresent) {
+                    this.FinalCpuInstruction = new Int8Array(opcode_len + ((global.ImmediateOperator.true == undefined ? 0 : 1) * 2))
+
+                    if (global.ImmediateOperator.true) {
                         this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
-                        this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
+                        this.FinalCpuInstruction[1] = this.OpcodeMode << 6
+                        if (global.IsDestMemoryOperator)
+                            this.FinalCpuInstruction[1] |= RegisterName[src] << 3 | 6
+                        else
+                            this.FinalCpuInstruction[1] |= RegisterName[dest] << 3 | 6
+
+                        this.FinalCpuInstruction[2] = global.ImmediateOperator.true & 0xFF
+                        this.FinalCpuInstruction[3] = (global.ImmediateOperator.true >> 8) & 0xFF
                     } else {
                         this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
                         this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
@@ -135,12 +145,23 @@ class Assembler {
                     fs.writeSync(this.OutputFile, this.FinalCpuInstruction, 0, 1)
                     break
                 }
-
         }
+        delete this.FinalCpuInstruction
     }
 
 }
 global.CodeAssembler = new Assembler()
+
+CheckIfImmediateOperator = (Argument) => {
+    if (Argument.charAt(0) == '[' && Argument.charAt(Argument.length - 1) == ']') {
+        tmp = Argument
+        tmp = tmp.replace('[', '')
+        tmp = tmp.replace(']', '')
+        return { true: Number(tmp) }
+    }
+    return { false: 0 };
+}
+
 
 GetInstructionArguments = (Line) => {
 
@@ -151,26 +172,31 @@ GetInstructionArguments = (Line) => {
 
         if (Element == 0) {
             global.CurrentOpcode = LineElements[Element]
-                // console.log('opcode', LineElements[Element])
         } else {
             if (global.CurrentDest == undefined)
                 global.CurrentDest = String(LineElements[Element])
             else
                 global.CurrentSrc = String(LineElements[Element])
         }
-
-
-
     }
 
-    if (global.CurrentDest != undefined)
-        if (global.CurrentDest.charAt(0) == '[' && global.CurrentDest.charAt(global.CurrentDest.length - 1) == ']')
+    if (global.CurrentDest != undefined) {
+        if (global.CurrentDest.charAt(0) == '[' && global.CurrentDest.charAt(global.CurrentDest.length - 1) == ']') {
             global.IsDestMemoryOperator = true;
+            global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentDest)
+        }
+    }
 
-    if (global.CurrentSrc != undefined)
-        if (global.CurrentSrc.charAt(0) == '[' && global.CurrentSrc.charAt(global.CurrentSrc.length - 1) == ']')
+    if (global.CurrentSrc != undefined) {
+        if (global.CurrentSrc.charAt(0) == '[' && global.CurrentSrc.charAt(global.CurrentSrc.length - 1) == ']') {
             global.IsSrcMemoryOperator = true
+            if (global.ImmediateOperator.true == undefined)
+                global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentSrc)
+                // console.log(global.ImmediateOperator)
+        }
+    }
 
+    console.log(global.ImmediateOperator)
 
     global.CurrentLineNumber++;
     CodeAssembler.assemble_instruction(global.CurrentOpcode, global.CurrentDest, global.CurrentSrc, global.OpcodeArguments[global.CurrentOpcode], global.BaseOpcodeLength[global.CurrentOpcode] + global.DataFieldPresent * 2)
@@ -181,6 +207,7 @@ GetInstructionArguments = (Line) => {
     global.DataFieldPresent = false
     global.IsDestMemoryOperator = false
     global.IsSrcMemoryOperator = false
+    global.ImmediateOperator = undefined
 
 
 }

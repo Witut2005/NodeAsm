@@ -19,6 +19,7 @@ Lines = FileContent.split('\n')
 
 for (CurrentLine in Lines) {
 
+    console.log(Lines[CurrentLine])
     if (CurrentLine.split(' ') == '')
         continue
 

@@ -1,2 +1,2 @@
-inc ax
-sti
+add ax [0x1234]
+add [0xFFFF] ax
