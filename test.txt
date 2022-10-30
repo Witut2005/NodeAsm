@@ -1,2 +1,1 @@
-add ax [0x1234]
-add [0xFFFF] ax
+add ax [di+0x1234]

@@ -1,7 +1,7 @@
 const fs = require('fs')
 const { exit } = require('process')
 const { Opcode } = require('./opcode.js')
-const { RegisterName } = require('./registers.js')
+const { RegisterName, RegisterNameMode2 } = require('./registers.js')
 const { exec } = require('child_process')
 const { ifError } = require('assert')
 
@@ -12,6 +12,8 @@ global.DataFieldPresent = false
 global.IsDestMemoryOperator = false
 global.IsSrcMemoryOperator = false
 global.ImmediateOperator = false
+global.Displacement = false
+global.DisplacementBase = undefined
 global.CurrentLineNumber = 0
 
 RemoveOutputFile = () =>
@@ -54,13 +56,26 @@ class Assembler {
         this.OpcodeMode = IsDestMemoryOperator | IsSrcMemoryOperator
         if (!this.OpcodeMode)
             this.OpcodeMode = 3
-        else
+        else if (Displacement.true != undefined) {
+            this.OpcodeMode = 2
+        } else
             this.OpcodeMode = 0
 
-        // console.log(typeof(RegisterName))
-
+        console.log('opcode mode %d', this.OpcodeMode)
         this.RegisterIndexDest = Object.keys(RegisterName).indexOf(dest)
         this.RegisterIndexSrc = Object.keys(RegisterName).indexOf(src)
+
+        if (this.OpcodeMode == 2) {
+            let Tmp = Object.keys(RegisterNameMode2).indexOf(global.DisplacementBase)
+            if (Tmp == undefined) {
+                console.error('Tmp value %d', Tmp)
+                console.error('Displacment Base Error: Invalid operand (Line: %d)', Number(global.CurrentLineNumber))
+                RemoveOutputFile()
+                exit(3)
+            }
+        }
+
+
 
         if (!global.ImmediateOperator) {
             if ((this.RegisterIndexDest == -1 && opcode_args >= 1) || (this.RegisterIndexSrc == -1 && opcode_args == 2)) {
@@ -126,6 +141,17 @@ class Assembler {
 
                         this.FinalCpuInstruction[2] = global.ImmediateOperator.true & 0xFF
                         this.FinalCpuInstruction[3] = (global.ImmediateOperator.true >> 8) & 0xFF
+                    } else if (this.OpcodeMode == 2) {
+                        this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                        this.FinalCpuInstruction[1] = this.OpcodeMode << 6
+                        if (Displacement.true.IsDestinationOperand)
+                            this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase] | RegisterName[src] << 3
+                        else
+                            this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase] | RegisterName[dest] << 3
+
+                        this.FinalCpuInstruction[2] = global.Displacement.true.value & 0xFF
+                        this.FinalCpuInstruction[3] = (global.Displacement.true.value >> 8) & 0xFF
+
                     } else {
                         this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
                         this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
@@ -159,20 +185,46 @@ CheckIfImmediateOperator = (Argument) => {
         tmp = tmp.replace(']', '')
         return { true: Number(tmp) }
     }
-    return { false: 0 };
+    return { false: 0 }
 }
+CheckIfDisplacementPresent = (Argument, IsDest) => {
+    Argument = Argument.replace(' ', '')
+    console.log('fromini: ', Argument)
+
+    DisplacementSign = Argument.lastIndexOf('+') == -1 ? Argument.lastIndexOf('-') : Argument.lastIndexOf('+')
+    if (DisplacementSign == -1)
+        return { false: 0 }
+
+    console.log("displacement sign: ", Argument[DisplacementSign])
+    console.log("displacement value: %s", Argument.slice(DisplacementSign + 1, -1).toString(16))
+    global.DisplacementBase = Argument.slice(1, DisplacementSign)
+
+    console.log("displacement base: %s", global.DisplacementBase)
+
+    return { true: { value: Number(Argument.slice(DisplacementSign + 1, -1).toString(16)), IsDestinationOperand: IsDest } }
+
+
+}
+
 
 
 GetInstructionArguments = (Line) => {
 
-
     LineElements = Lines[Line].split(' ')
 
-    for (Element in LineElements) {
+    // console.log(LineElements)
 
+    // for (Element in LineElements) {
+    //     while (LineElements[Element].indexOf(' ') != -1)
+    //         LineElements[Element] = LineElements[Element].replace(' ', '')
+    // }
+    // console.log(LineElements)
+
+    for (Element in LineElements) {
         if (Element == 0) {
             global.CurrentOpcode = LineElements[Element]
         } else {
+            console.log(LineElements[Element])
             if (global.CurrentDest == undefined)
                 global.CurrentDest = String(LineElements[Element])
             else
@@ -180,10 +232,12 @@ GetInstructionArguments = (Line) => {
         }
     }
 
+
     if (global.CurrentDest != undefined) {
         if (global.CurrentDest.charAt(0) == '[' && global.CurrentDest.charAt(global.CurrentDest.length - 1) == ']') {
             global.IsDestMemoryOperator = true;
             global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentDest)
+            global.Displacement = CheckIfDisplacementPresent(global.CurrentDest, true)
         }
     }
 
@@ -192,6 +246,8 @@ GetInstructionArguments = (Line) => {
             global.IsSrcMemoryOperator = true
             if (global.ImmediateOperator.true == undefined)
                 global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentSrc)
+            if (global.Displacement.true == undefined)
+                global.Displacement = CheckIfDisplacementPresent(global.CurrentSrc, false)
                 // console.log(global.ImmediateOperator)
         }
     }
@@ -208,6 +264,7 @@ GetInstructionArguments = (Line) => {
     global.IsDestMemoryOperator = false
     global.IsSrcMemoryOperator = false
     global.ImmediateOperator = undefined
+    global.Displacement = undefined
 
 
 }

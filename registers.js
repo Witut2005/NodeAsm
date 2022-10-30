@@ -30,11 +30,21 @@ RegisterName = {
     'bh': 7,
 
 
+}
 
-
+RegisterNameMode2 = {
+    'bx+si': 0,
+    'bx+di': 1,
+    'bp+si': 2,
+    'bp+di': 3,
+    'si': 4,
+    'di': 5,
+    'bp': 6,
+    'bx': 7
 }
 
 
 module.exports = {
-    RegisterName
+    RegisterName,
+    RegisterNameMode2
 }
