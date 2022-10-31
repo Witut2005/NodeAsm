@@ -1,1 +1,25 @@
 pop cx
+int 0x80
+iret
+clc
+cmc
+stc
+cld
+std
+cli
+sti
+movsb
+movsw
+jmp(word) 0x1000:0xFFFF
+call(word) 0x1000:0xFFFF
+or ax [0xDEAD]
+and ah cl
+not cl
+neg dl
+sbb ax [si+0x1234]
+aaa
+daa
+push(seg) ss
+pop(seg) ds
+pop(seg) ss
+pop(seg) es

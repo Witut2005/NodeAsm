@@ -32,6 +32,13 @@ RegisterName = {
 
 }
 
+SegmentRegisterName = {
+    'es': 0,
+    'cs': 1,
+    'ss': 2,
+    'ds': 3
+}
+
 RegisterNameMode2 = {
     'bx+si': 0,
     'bx+di': 1,
