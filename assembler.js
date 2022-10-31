@@ -11,10 +11,11 @@ global.CurrentSrc = undefined
 global.DataFieldPresent = false
 global.IsDestMemoryOperator = false
 global.IsSrcMemoryOperator = false
-global.ImmediateOperator = false
+global.ImmediateOperator = { false: 0 }
 global.Displacement = false
 global.DisplacementBase = undefined
 global.CurrentLineNumber = 0
+global.ConstantValue = 0
 
 RemoveOutputFile = () =>
     exec('rm output', (error, stdout, stderr) => {
@@ -26,6 +27,11 @@ RemoveOutputFile = () =>
             console.log(stderr)
     })
 
+shrinkArray = (array, newSize) => {
+    while (array.length > newSize)
+        array.pop()
+    return array
+}
 class Assembler {
 
 
@@ -44,7 +50,8 @@ class Assembler {
         })
     }
 
-    assemble_instruction(opcode, dest, src, opcode_args, opcode_len = undefined) {
+    assemble_instruction(opcode, dest, src, opcode_len = undefined) {
+
 
         console.log(opcode_len)
 
@@ -104,75 +111,74 @@ class Assembler {
             this.OpcodeDestinationBit = 2
         }
 
+        this.FinalCpuInstruction = []
 
-        switch (opcode) {
-            case 'inc':
-                {
-                    this.FinalCpuInstruction = new Int8Array(1)
-                    this.FinalCpuInstruction[0] = Opcode[opcode] | RegisterName[dest]
-                    fs.writeSync(this.OutputFile, this.FinalCpuInstruction, 0, this.FinalCpuInstruction.length)
-                    break
-                }
+        if (Opcode2x2.indexOf(opcode) != -1) {
 
-            case 'add':
-                {
+            this.DataFieldPresent = false
 
-                    this.DataFieldPresent = false
+            if (RegisterName[dest] != undefined) {
+                this.data = Number(dest)
+                this.DataFieldPresent = true
+            }
 
-                    if (RegisterName[dest] != undefined) {
-                        this.data = Number(dest)
-                        this.DataFieldPresent = true
-                    }
+            if (RegisterName[src] != undefined) {
+                this.data = Number(src)
+                this.DataFieldPresent = true
+            }
 
-                    if (RegisterName[src] != undefined) {
-                        this.data = Number(src)
-                        this.DataFieldPresent = true
-                    }
+            this.FinalCpuInstruction.length = opcode_len + ((global.ImmediateOperator == undefined ? 0 : 1) * 2)
 
-                    this.FinalCpuInstruction = new Int8Array(opcode_len + ((global.ImmediateOperator.true == undefined ? 0 : 1) * 2))
+            if (this.OpcodeMode == 3) {
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
+                this.FinalCpuInstruction = shrinkArray(this.FinalCpuInstruction, 2)
+            } else if (global.ImmediateOperator.true) {
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6
+                if (global.IsDestMemoryOperator)
+                    this.FinalCpuInstruction[1] |= RegisterName[src] << 3 | 6
+                else
+                    this.FinalCpuInstruction[1] |= RegisterName[dest] << 3 | 6
 
-                    if (global.ImmediateOperator.true) {
-                        this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
-                        this.FinalCpuInstruction[1] = this.OpcodeMode << 6
-                        if (global.IsDestMemoryOperator)
-                            this.FinalCpuInstruction[1] |= RegisterName[src] << 3 | 6
-                        else
-                            this.FinalCpuInstruction[1] |= RegisterName[dest] << 3 | 6
+                this.FinalCpuInstruction[2] = global.ImmediateOperator.true & 0xFF
+                this.FinalCpuInstruction[3] = (global.ImmediateOperator.true >> 8) & 0xFF
+            } else if (this.OpcodeMode == 2) {
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6
+                if (Displacement.true.IsDestinationOperand)
+                    this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase] | RegisterName[src] << 3
+                else
+                    this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase] | RegisterName[dest] << 3
 
-                        this.FinalCpuInstruction[2] = global.ImmediateOperator.true & 0xFF
-                        this.FinalCpuInstruction[3] = (global.ImmediateOperator.true >> 8) & 0xFF
-                    } else if (this.OpcodeMode == 2) {
-                        this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
-                        this.FinalCpuInstruction[1] = this.OpcodeMode << 6
-                        if (Displacement.true.IsDestinationOperand)
-                            this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase] | RegisterName[src] << 3
-                        else
-                            this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase] | RegisterName[dest] << 3
+                this.FinalCpuInstruction[2] = global.Displacement.true.value & 0xFF
+                this.FinalCpuInstruction[3] = (global.Displacement.true.value >> 8) & 0xFF
+            }
 
-                        this.FinalCpuInstruction[2] = global.Displacement.true.value & 0xFF
-                        this.FinalCpuInstruction[3] = (global.Displacement.true.value >> 8) & 0xFF
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
+        } else if (Opcode1x0.indexOf(opcode) != -1) {
 
-                    } else {
-                        this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
-                        this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
+            this.FinalCpuInstruction.length = 1
+            this.FinalCpuInstruction[0] = Opcode[opcode]
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, 1)
 
-                    }
+        } else if (Opcode1x1.indexOf(opcode) != -1) {
 
-                    // console.log(dest)
+            console.log('got it!')
+            this.FinalCpuInstruction.length = 1
+            this.FinalCpuInstruction[0] = Opcode[opcode] | RegisterName[dest]
+            console.log('gowno: ', this.FinalCpuInstruction[0].toString(16))
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, 1)
 
-                    fs.writeSync(this.OutputFile, this.FinalCpuInstruction, 0, this.FinalCpuInstruction.length)
-                    break
-                }
+        } else if (OpcodeIO.indexOf(opcode) != -1) {
 
-            case 'sti':
-                {
-                    this.FinalCpuInstruction = new Int8Array(1)
-                    this.FinalCpuInstruction[0] = Opcode['sti']
-                    fs.writeSync(this.OutputFile, this.FinalCpuInstruction, 0, 1)
-                    break
-                }
+            this.FinalCpuInstruction.length = 2
+            this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit
+            this.FinalCpuInstruction[1] = global.ConstantValue
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
+
         }
-        delete this.FinalCpuInstruction
+
     }
 
 }
@@ -212,14 +218,6 @@ GetInstructionArguments = (Line) => {
 
     LineElements = Lines[Line].split(' ')
 
-    // console.log(LineElements)
-
-    // for (Element in LineElements) {
-    //     while (LineElements[Element].indexOf(' ') != -1)
-    //         LineElements[Element] = LineElements[Element].replace(' ', '')
-    // }
-    // console.log(LineElements)
-
     for (Element in LineElements) {
         if (Element == 0) {
             global.CurrentOpcode = LineElements[Element]
@@ -236,26 +234,31 @@ GetInstructionArguments = (Line) => {
     if (global.CurrentDest != undefined) {
         if (global.CurrentDest.charAt(0) == '[' && global.CurrentDest.charAt(global.CurrentDest.length - 1) == ']') {
             global.IsDestMemoryOperator = true;
-            global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentDest)
             global.Displacement = CheckIfDisplacementPresent(global.CurrentDest, true)
+            if (global.Displacement.true == undefined)
+                global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentDest)
         }
+        if (isNaN(Number(global.CurrentDest)) == false)
+            global.ConstantValue = Number(global.CurrentDest)
     }
 
     if (global.CurrentSrc != undefined) {
         if (global.CurrentSrc.charAt(0) == '[' && global.CurrentSrc.charAt(global.CurrentSrc.length - 1) == ']') {
             global.IsSrcMemoryOperator = true
-            if (global.ImmediateOperator.true == undefined)
-                global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentSrc)
-            if (global.Displacement.true == undefined)
+            if (global.Displacement != undefined)
                 global.Displacement = CheckIfDisplacementPresent(global.CurrentSrc, false)
+            if (global.ImmediateOperator.true == undefined && global.Displacement.true == undefined)
+                global.ImmediateOperator = CheckIfImmediateOperator(global.CurrentSrc)
                 // console.log(global.ImmediateOperator)
         }
+        if (isNaN(Number(global.CurrentSrc)) == false)
+            global.ConstantValue = Number(global.CurrentSrc)
     }
 
     console.log(global.ImmediateOperator)
 
     global.CurrentLineNumber++;
-    CodeAssembler.assemble_instruction(global.CurrentOpcode, global.CurrentDest, global.CurrentSrc, global.OpcodeArguments[global.CurrentOpcode], global.BaseOpcodeLength[global.CurrentOpcode] + global.DataFieldPresent * 2)
+    CodeAssembler.assemble_instruction(global.CurrentOpcode, global.CurrentDest, global.CurrentSrc, global.BaseOpcodeLength[global.CurrentOpcode] + global.DataFieldPresent * 2)
 
     global.CurrentOpcode = undefined
     global.CurrentDest = undefined
@@ -263,8 +266,9 @@ GetInstructionArguments = (Line) => {
     global.DataFieldPresent = false
     global.IsDestMemoryOperator = false
     global.IsSrcMemoryOperator = false
-    global.ImmediateOperator = undefined
+    global.ImmediateOperator = { false: 0 }
     global.Displacement = undefined
+    global.ConstantValue = undefined
 
 
 }

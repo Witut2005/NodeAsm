@@ -19,11 +19,12 @@ Lines = FileContent.split('\n')
 
 for (CurrentLine in Lines) {
 
+
     console.log(Lines[CurrentLine])
-    if (CurrentLine.split(' ') == '')
+    if (Lines[CurrentLine].split(' ') == '')
         continue
 
     // console.log(BaseOpcodeLength[CurrentOpcode])
-    GetInstructionArguments(global.CurrentLine)
+    GetInstructionArguments(CurrentLine)
 
 }

@@ -1,1 +1,1 @@
-add ax [di+0x1234]
+pop cx
