@@ -48,7 +48,12 @@ Opcode = {
     'lds': 0xC5,
     'les': 0xC4,
     'push(seg)': 0x06,
-    'pop(seg)': 0x07
+    'pop(seg)': 0x07,
+    'add_al': 0x4,
+    'add_ax': 0x4,
+    'adc_al': 0x14,
+    'adc_ax': 0x14,
+    'movi': 0xC6
 
 
 }
@@ -72,7 +77,8 @@ BaseOpcodeLength = {
     'neg': 2,
     'sbb': 2,
     'lds': 2,
-    'les': 2
+    'les': 2,
+    'mov': 2
 
 }
 
@@ -83,6 +89,19 @@ Opcode2x2 = [
 Opcode1x0 = [
     'sti', 'xlat', 'pushf', 'popf', 'sahf', 'lahf', 'ret', 'into', 'iret', 'clc', 'cmc', 'stc',
     'cld', 'std', 'cli', 'sti', 'aaa', 'daa'
+]
+
+OpcodeAccumulatorOperation = [
+    'add_al',
+    'add_ax',
+    'adc_al',
+    'adc_ax',
+    'mov_al',
+    'mov_ax',
+]
+
+OpcodeImmediateOperation = [
+    'movi'
 ]
 
 Opcode1x1 = [

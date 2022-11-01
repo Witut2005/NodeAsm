@@ -16,6 +16,7 @@ global.Displacement = false
 global.DisplacementBase = undefined
 global.CurrentLineNumber = 0
 global.ConstantValue = 0
+global.MemoryOperation8BitBoundary = false
 
 RemoveOutputFile = () =>
     exec('rm output', (error, stdout, stderr) => {
@@ -54,6 +55,7 @@ class Assembler {
 
 
         console.log(opcode_len)
+        console.log('FAFSASF', opcode.slice(0, opcode.indexOf('(') + 1) + ')')
 
         if (global.IsDestMemoryOperator && global.IsSrcMemoryOperator) {
             console.error('ERROR: two memory operands (x86 supports only one in given opcode)')
@@ -63,7 +65,7 @@ class Assembler {
         this.OpcodeMode = IsDestMemoryOperator | IsSrcMemoryOperator
         if (!this.OpcodeMode)
             this.OpcodeMode = 3
-        else if (Displacement.true != undefined) {
+        else if (Displacement.true != undefined && isNaN(Displacement.true.value) == false) {
             this.OpcodeMode = 2
         } else
             this.OpcodeMode = 0
@@ -106,13 +108,10 @@ class Assembler {
 
         if (global.IsDestMemoryOperator == true) {
             this.OpcodeDestinationBit = 0;
-            [src, dest] = [dest, src]
-        } else {
+        } else
             this.OpcodeDestinationBit = 2
-        }
 
         this.FinalCpuInstruction = []
-
         if (Opcode2x2.indexOf(opcode) != -1) {
 
             this.DataFieldPresent = false
@@ -216,13 +215,86 @@ class Assembler {
             this.FinalCpuInstruction.length = 1
             this.FinalCpuInstruction[0] = Opcode[opcode] | ((SegmentRegisterName[CurrentDest] & 0b11) << 3)
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
+        } else if (OpcodeAccumulatorOperation.indexOf(opcode) != -1) {
+
+            if (opcode.charAt(opcode.length - 1) == 'x')
+                this.Opcode16Bit = 1
+            else
+                this.Opcode16Bit = 0
+
+            this.FinalCpuInstruction.length = 2 + this.Opcode16Bit
+
+            this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit
+            this.FinalCpuInstruction[1] = global.ConstantValue & 0xFF
+            if (this.Opcode16Bit == 1)
+                this.FinalCpuInstruction[2] = (global.ConstantValue >> 8) & 0xFF
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
+        } else if (OpcodeImmediateOperation.indexOf(opcode) != -1) {
+
+            if (global.CurrentDest.at(-1) == 'l' || global.CurrentDest.at(-1) == 'h')
+                this.Opcode16Bit = 0
+            else
+                this.Opcode16Bit = 1
+
+            this.FinalCpuInstruction.length = (2) + (1 + this.Opcode16Bit)
+            if (global.Displacement.true != undefined)
+                this.FinalCpuInstruction.length += 2
+
+            if (this.OpcodeMode == 3) {
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest]
+                this.FinalCpuInstruction[2] = global.ConstantValue & 0xFF
+
+                if (this.Opcode16Bit)
+                    this.FinalCpuInstruction[3] = (global.ConstantValue >> 8) & 0xFF
+            } else if (this.OpcodeMode == 0) {
+
+                if (global.MemoryOperation8BitBoundary)
+                    this.Opcode16Bit = 0
+                else
+                    this.Opcode16Bit = 1
+
+                this.FinalCpuInstruction.length = 3 + this.Opcode16Bit
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest]
+                this.FinalCpuInstruction[2] = global.ConstantValue & 0xFF
+                if (this.Opcode16Bit)
+                    this.FinalCpuInstruction[3] = (global.ConstantValue >> 8) & 0xFF
+            } else if (global.ImmediateOperator.true && this.OpcodeMode == 0) {
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6
+                if (global.IsDestMemoryOperator)
+                    this.FinalCpuInstruction[1] |= 6
+                else
+                    this.FinalCpuInstruction[1] |= 6
+
+                this.FinalCpuInstruction[2] = global.ImmediateOperator.true & 0xFF
+                this.FinalCpuInstruction[3] = (global.ImmediateOperator.true >> 8) & 0xFF
+                this.FinalCpuInstruction[4] = global.ConstantValue & 0xFF
+                if (this.Opcode16Bit)
+                    this.FinalCpuInstruction[5] = (global.ConstantValue >> 8) & 0xFF
+            } else if (this.OpcodeMode == 2) {
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6
+                if (Displacement.true.IsDestinationOperand)
+                    this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase]
+                else
+                    this.FinalCpuInstruction[1] |= RegisterNameMode2[global.DisplacementBase]
+
+                this.FinalCpuInstruction[2] = global.Displacement.true.value & 0xFF
+                this.FinalCpuInstruction[3] = (global.Displacement.true.value >> 8) & 0xFF
+                this.FinalCpuInstruction[4] = global.ConstantValue & 0xFF
+                if (this.Opcode16Bit)
+                    this.FinalCpuInstruction[5] = (global.ConstantValue >> 8) & 0xFF
+            }
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
         } else {
             console.error('ERROR')
             exit(3)
         }
 
-    }
 
+    }
 }
 global.CodeAssembler = new Assembler()
 
@@ -265,7 +337,9 @@ GetInstructionArguments = (Line) => {
             global.CurrentOpcode = LineElements[Element]
         } else {
             console.log(LineElements[Element])
-            if (global.CurrentDest == undefined)
+            if (LineElements[Element] == 'byte') {
+                global.MemoryOperation8BitBoundary = true
+            } else if (global.CurrentDest == undefined)
                 global.CurrentDest = String(LineElements[Element])
             else
                 global.CurrentSrc = String(LineElements[Element])
@@ -311,6 +385,7 @@ GetInstructionArguments = (Line) => {
     global.ImmediateOperator = { false: 0 }
     global.Displacement = { false: 0 }
     global.ConstantValue = undefined
+    global.MemoryOperation8BitBoundary = false
 
 
 }

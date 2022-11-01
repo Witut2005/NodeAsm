@@ -23,3 +23,9 @@ push(seg) ss
 pop(seg) ds
 pop(seg) ss
 pop(seg) es
+add_al 0xFFFF
+adc_ax 0x1234
+mov [0x1234] dx
+mov cx ax
+movi byte [bx+si] 0x22
+movi [bx+si+0x1234] 0xFFFF
