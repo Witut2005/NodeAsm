@@ -1,4 +1,8 @@
 Opcode = {
+    'db': 0xFFFF,
+    'dw': 0xFFFF,
+    'dd': 0xFFFF,
+    'dq': 0xFFFF,
     'add': 0,
     'or': 0x08,
     'and': 0x20,
@@ -31,6 +35,7 @@ Opcode = {
     'movsw': 0xA5,
     'cmpsb': 0xA6,
     'cmpsw': 0xA7,
+    'cmp': 0x38,
     'scasb': 0xAE,
     'scasw': 0xAF,
     'lodsb': 0xAC,
@@ -53,9 +58,34 @@ Opcode = {
     'add_ax': 0x4,
     'adc_al': 0x14,
     'adc_ax': 0x14,
-    'movi': 0xC6
-
-
+    'movi': 0xC6,
+    'hlt': 0xF4,
+    'or_al': 0x0C,
+    'or_ax': 0x0D,
+    'xor_al': 0x34,
+    'xor_ax': 0x35,
+    'test_al': 0xA8,
+    'test_ax': 0xA8,
+    'jz': 0x74,
+    'je': 0x74,
+    'jl': 0x7C,
+    'jle': 0x7E,
+    'jb': 0x72,
+    'jbe': 0x76,
+    'jp': 0x7A,
+    'jo': 0x70,
+    'js': 0x78,
+    'jne': 0x75,
+    'jnl': 0x7D,
+    'jnle': 0x7F,
+    'jnb': 0x72,
+    'jnbe': 0x77,
+    'jnp': 0x7B,
+    'jno': 0x71,
+    'jns': 0x79
+    
+    
+    
 }
 
 BaseOpcodeLength = {
@@ -82,13 +112,15 @@ BaseOpcodeLength = {
 
 }
 
+AssemblerDirectives = ['db', 'dw', 'dd', 'dq']
+
 Opcode2x2 = [
-    'add', 'adc', 'mov', 'xor', 'and', 'or', 'not', 'neg', 'sbb', 'lds', 'les'
+    'add', 'adc', 'mov', 'xor', 'and', 'or', 'not', 'neg', 'sbb', 'lds', 'les', 'cmp'
 ]
 
 Opcode1x0 = [
     'sti', 'xlat', 'pushf', 'popf', 'sahf', 'lahf', 'ret', 'into', 'iret', 'clc', 'cmc', 'stc',
-    'cld', 'std', 'cli', 'sti', 'aaa', 'daa'
+    'cld', 'std', 'cli', 'sti', 'aaa', 'daa', 'hlt'
 ]
 
 OpcodeAccumulatorOperation = [
@@ -98,6 +130,12 @@ OpcodeAccumulatorOperation = [
     'adc_ax',
     'mov_al',
     'mov_ax',
+    'or_ax',
+    'or_al',
+    'xor_al',
+    'xor_ax',
+    'test_ax',
+    'test_al'
 ]
 
 OpcodeImmediateOperation = [
@@ -110,6 +148,7 @@ Opcode1x1 = [
 
 OpcodeConstArgument8Bit = ['int', 'in', 'out']
 OpcodeFlowControl = ['jmp']
+OpcodeFlowControl8BitJump = ['jz', 'je', 'jl', 'jle', 'jb', 'jbe', 'jp', 'jo', 'js', 'jne', 'jnl', 'jnle', 'jnb', 'jnbe', 'jnp', 'jno', 'jns']
 OpcodeFlowControlFar = ['jmp(word)', 'call(word)']
 
 OpcodeStringManipulation = [
@@ -119,6 +158,15 @@ OpcodeStringManipulation = [
 OpcodeSegmentStackOperation = [
     'pop(seg)', 'push(seg)'
 ]
+
+x86Sizes = {
+
+    'b': 1,
+    'w': 2,
+    'd': 4,
+    'q': 8
+    
+}
 
 module.exports = {
     Opcode,

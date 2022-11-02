@@ -28,4 +28,20 @@ adc_ax 0x1234
 mov [0x1234] dx
 mov cx ax
 movi byte [bx+si] 0x22
-movi [bx+si+0x1234] 0xFFFF
+movi byte word [0x1234] 0x1234
+cli
+hlt
+xor_al 0x1234
+or_al 64
+test_ax 512
+add byte [0x1234] al
+jz $
+js $
+jl $
+cmp ax dx
+cmp [bx+si+0x1234] 
+
+db 0xFF
+dw 0x1234
+dd 0x12345678
+dq 0x0
