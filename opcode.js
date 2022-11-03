@@ -82,10 +82,15 @@ Opcode = {
     'jnbe': 0x77,
     'jnp': 0x7B,
     'jno': 0x71,
-    'jns': 0x79
-    
-    
-    
+    'jns': 0x79,
+    'mul': 0xF6,
+    'imul': 0xF6,
+    'div': 0xF6,
+    'idiv': 0xF6,
+    'test': 0xF6
+
+
+
 }
 
 BaseOpcodeLength = {
@@ -115,8 +120,22 @@ BaseOpcodeLength = {
 AssemblerDirectives = ['db', 'dw', 'dd', 'dq']
 
 Opcode2x2 = [
-    'add', 'adc', 'mov', 'xor', 'and', 'or', 'not', 'neg', 'sbb', 'lds', 'les', 'cmp'
+    'add', 'adc', 'mov', 'xor', 'and', 'or', 'not', 'neg', 'sbb', 'lds', 'les', 'cmp', 'mul', 'imul', 'div', 'idiv', 'test'
 ]
+
+AdditionalOpcodes = [
+    'mul', 'imul', 'not', 'neg'
+]
+
+AdditionalOpcodesFieldValues = {
+    'test': 0,
+    'not': 2,
+    'neg': 3,
+    'mul': 4,
+    'imul': 5,
+    'div': 6,
+    'idiv': 7
+}
 
 Opcode1x0 = [
     'sti', 'xlat', 'pushf', 'popf', 'sahf', 'lahf', 'ret', 'into', 'iret', 'clc', 'cmc', 'stc',
@@ -165,7 +184,7 @@ x86Sizes = {
     'w': 2,
     'd': 4,
     'q': 8
-    
+
 }
 
 module.exports = {

@@ -40,8 +40,10 @@ js $
 jl $
 cmp ax dx
 cmp [bx+si+0x1234] 
-
-db 0xFF
-dw 0x1234
-dd 0x12345678
-dq 0x0
+mul dl 
+mul word [bx+si+0x1234]
+imul word [bx+si+0x1234]
+not [0x1234]
+test word [bx+si-0xFFFF] 0x1234
+mov [si] ax
+mov ax [si]

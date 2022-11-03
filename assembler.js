@@ -16,7 +16,7 @@ global.Displacement = false
 global.DisplacementBase = undefined
 global.CurrentLineNumber = 0
 global.ConstantValue = 0
-global.MemoryOperation8BitBoundary = false
+global.MemoryOperation16BitBoundary = false
 
 RemoveOutputFile = () =>
     exec('rm output', (error, stdout, stderr) => {
@@ -53,9 +53,6 @@ class Assembler {
 
     assemble_instruction(opcode, dest, src, opcode_len = undefined) {
 
-
-        console.log(opcode_len)
-        console.log('FAFSASF', opcode.slice(0, opcode.indexOf('(') + 1) + ')')
 
         if (global.IsDestMemoryOperator && global.IsSrcMemoryOperator) {
             console.error('ERROR: two memory operands (x86 supports only one in given opcode)')
@@ -126,21 +123,20 @@ class Assembler {
                 this.DataFieldPresent = true
             }
 
-            if (opcode == 'not') {
-                src = dest
-                dest = 'dx'
-            } else if (opcode == 'neg') {
-                src = dest
-                dest = 'bx'
-            }
-
             this.FinalCpuInstruction.length = 2 + ((global.ImmediateOperator == undefined ? 0 : 1) * 2)
 
             if (this.OpcodeMode == 3) {
                 this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
                 this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
                 this.FinalCpuInstruction = shrinkArray(this.FinalCpuInstruction, 2)
-            } else if (global.ImmediateOperator.true) {
+            } else if (this.OpcodeMode == 0 && global.ImmediateOperator.true == undefined) {
+                this.FinalCpuInstruction.length = 2;
+                if (!this.OpcodeDestinationBit)
+                    [src, dest] = [dest, src]
+                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
+            } else if (global.ImmediateOperator.true != undefined) {
+                console.log('HALLO', global.ImmediateOperator.true)
                 this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
                 this.FinalCpuInstruction[1] = this.OpcodeMode << 6
                 if (global.IsDestMemoryOperator)
@@ -162,6 +158,30 @@ class Assembler {
                 this.FinalCpuInstruction[3] = (global.Displacement.true.value >> 8) & 0xFF
             }
 
+
+
+            if (opcode == 'test') {
+                this.FinalCpuInstruction.length += 2
+                if (global.ImmediateOperator.true == undefined)
+                    this.FinalCpuInstruction[1] = (this.FinalCpuInstruction[1] & 0xC0) | ((this.FinalCpuInstruction[1] & (0x7 << 3)) >> 3) | AdditionalOpcodesFieldValues[opcode] << 3
+                else
+                    this.FinalCpuInstruction[1] |= AdditionalOpcodesFieldValues[opcode] << 3
+                this.FinalCpuInstruction[0] |= global.MemoryOperation16BitBoundary
+
+                if (global.MemoryOperation16BitBoundary) {
+                    this.FinalCpuInstruction[this.FinalCpuInstruction.length - 2] = global.ConstantValue & 0xFF
+                    this.FinalCpuInstruction[this.FinalCpuInstruction.length - 1] = (global.ConstantValue >> 8) & 0xFF
+                } else
+                    this.FinalCpuInstruction[this.FinalCpuInstruction.length - 1] = global.ConstantValue & 0xFF
+            } else if (AdditionalOpcodes.indexOf(opcode) != -1) {
+                if (global.ImmediateOperator.true == undefined)
+                    this.FinalCpuInstruction[1] = (this.FinalCpuInstruction[1] & 0xC0) | ((this.FinalCpuInstruction[1] & (0x7 << 3)) >> 3) | AdditionalOpcodesFieldValues[opcode] << 3
+                else
+                    this.FinalCpuInstruction[1] |= AdditionalOpcodesFieldValues[opcode] << 3
+                this.FinalCpuInstruction[0] |= global.MemoryOperation16BitBoundary
+            }
+
+
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
         } else if (Opcode1x0.indexOf(opcode) != -1) {
 
@@ -169,12 +189,11 @@ class Assembler {
             this.FinalCpuInstruction[0] = Opcode[opcode]
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, 1)
 
-        } else if (Opcode1x1.indexOf(opcode) != -1) {
+        } else
+        if (Opcode1x1.indexOf(opcode) != -1) {
 
-            console.log('got it!')
             this.FinalCpuInstruction.length = 1
             this.FinalCpuInstruction[0] = Opcode[opcode] | RegisterName[dest]
-            console.log('gowno: ', this.FinalCpuInstruction[0].toString(16))
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, 1)
 
         } else if (OpcodeConstArgument8Bit.indexOf(opcode) != -1) {
@@ -191,10 +210,7 @@ class Assembler {
             this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
 
-        } 
-        
-        else if(OpcodeFlowControl8BitJump.indexOf(opcode) != -1)
-        {
+        } else if (OpcodeFlowControl8BitJump.indexOf(opcode) != -1) {
             this.FinalCpuInstruction.length = 2
 
             if (global.CurrentDest == '$')
@@ -202,11 +218,9 @@ class Assembler {
 
             this.FinalCpuInstruction[0] = Opcode[opcode]
             this.FinalCpuInstruction[1] = global.ConstantValue & 0xFF
-            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)            
-            
-        }
-        
-        else if (OpcodeFlowControl.indexOf(opcode) != -1) {
+            fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
+
+        } else if (OpcodeFlowControl.indexOf(opcode) != -1) {
 
             this.FinalCpuInstruction.length = 3
 
@@ -246,18 +260,16 @@ class Assembler {
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
         } else if (OpcodeImmediateOperation.indexOf(opcode) != -1) {
 
-            try{
-                
-            if (global.CurrentDest.at(-1) == 'l' || global.CurrentDest.at(-1) == 'h')
-                this.Opcode16Bit = 0
-            else
-                this.Opcode16Bit = 1
-            }
-            
-            catch (error) {
+            try {
+
+                if (global.CurrentDest.at(-1) == 'l' || global.CurrentDest.at(-1) == 'h')
+                    this.Opcode16Bit = 0
+                else
+                    this.Opcode16Bit = 1
+            } catch (error) {
                 console.log('CurrentDest=undefined')
             }
-            
+
             this.FinalCpuInstruction.length = (2) + (1 + this.Opcode16Bit)
             if (global.Displacement.true != undefined)
                 this.FinalCpuInstruction.length += 2
@@ -271,10 +283,10 @@ class Assembler {
                     this.FinalCpuInstruction[3] = (global.ConstantValue >> 8) & 0xFF
             } else if (global.ImmediateOperator.true && this.OpcodeMode == 0) {
 
-                if (global.MemoryOperation8BitBoundary)
-                    this.Opcode16Bit = 0
-                else
+                if (global.MemoryOperation16BitBoundary)
                     this.Opcode16Bit = 1
+                else
+                    this.Opcode16Bit = 0
 
                 this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
                 this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | 6
@@ -285,10 +297,10 @@ class Assembler {
                     this.FinalCpuInstruction[5] = (global.ConstantValue >> 8) & 0xFF
             } else if (this.OpcodeMode == 0) {
 
-                if (global.MemoryOperation8BitBoundary)
-                    this.Opcode16Bit = 0
-                else
+                if (global.MemoryOperation16BitBoundary)
                     this.Opcode16Bit = 1
+                else
+                    this.Opcode16Bit = 0
 
                 this.FinalCpuInstruction.length = 3 + this.Opcode16Bit
                 this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
@@ -296,7 +308,7 @@ class Assembler {
                 this.FinalCpuInstruction[2] = global.ConstantValue & 0xFF
                 if (this.Opcode16Bit)
                     this.FinalCpuInstruction[3] = (global.ConstantValue >> 8) & 0xFF
-            }  else if (this.OpcodeMode == 2) {
+            } else if (this.OpcodeMode == 2) {
                 this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
                 this.FinalCpuInstruction[1] = this.OpcodeMode << 6
                 if (Displacement.true.IsDestinationOperand)
@@ -311,23 +323,27 @@ class Assembler {
                     this.FinalCpuInstruction[5] = (global.ConstantValue >> 8) & 0xFF
             }
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
-        } 
-        else if(AssemblerDirectives.indexOf(opcode) != -1)
-        {
-        
-            this.FinalCpuInstruction.length = x86Sizes[opcode.charAt(opcode.length - 1)]
-         
-            for(let i = 0; i < this.FinalCpuInstruction.length; i++)
-            {
-                this.FinalCpuInstruction[i] = global.ConstantValue & 0xFF
-                global.ConstantValue = global.ConstantValue >> 8
-                
+        } else if (AssemblerDirectives.indexOf(opcode) != -1) {
+
+            if (opcode.charAt(opcode.length - 1) == 'b' && global.CurrentDest.charCodeAt(0) == 0x22 && global.CurrentDest.charCodeAt(global.CurrentDest.length - 1) == 0x22) {
+                this.FinalCpuInstruction.length = global.CurrentDest.length - 2
+                for (let i = 1; i < global.CurrentDest.length - 1; i++) {
+                    this.FinalCpuInstruction[i - 1] = global.CurrentDest.charCodeAt(i)
+                    console.log(global.CurrentDest[i])
+                }
+            } else {
+                this.FinalCpuInstruction.length = x86Sizes[opcode.charAt(opcode.length - 1)]
+
+                for (let i = 0; i < this.FinalCpuInstruction.length; i++) {
+                    this.FinalCpuInstruction[i] = global.ConstantValue & 0xFF
+                    global.ConstantValue = global.ConstantValue >> 8
+
+                }
             }
-                
+
             fs.writeSync(this.OutputFile, new Int8Array(this.FinalCpuInstruction), 0, this.FinalCpuInstruction.length)
-            
-        }
-        else {
+
+        } else {
             console.error('ERROR')
             exit(3)
         }
@@ -342,7 +358,11 @@ CheckIfImmediateOperator = (Argument) => {
         tmp = Argument
         tmp = tmp.replace('[', '')
         tmp = tmp.replace(']', '')
-        return { true: Number(tmp) }
+
+        if (isNaN(Number(tmp)))
+            return { false: 0 }
+        else
+            return { true: Number(tmp) }
     }
     return { false: 0 }
 }
@@ -350,17 +370,24 @@ CheckIfDisplacementPresent = (Argument, IsDest) => {
     Argument = Argument.replace(' ', '')
     console.log('fromini: ', Argument)
 
-    DisplacementSign = Argument.lastIndexOf('+') == -1 ? Argument.lastIndexOf('-') : Argument.lastIndexOf('+')
-    if (DisplacementSign == -1)
-        return { false: 0 }
+    DisplacementSignIndex = Argument.lastIndexOf('-') == -1 ? Argument.lastIndexOf('+') : Argument.lastIndexOf('-')
 
-    console.log("displacement sign: ", Argument[DisplacementSign])
-    console.log("displacement value: %s", Argument.slice(DisplacementSign + 1, -1).toString(16))
-    global.DisplacementBase = Argument.slice(1, DisplacementSign)
+    if (DisplacementSignIndex == -1)
+        return { false: 0 }
+    DisplacementSign = Argument[DisplacementSignIndex]
+
+    if (DisplacementSign == '+')
+        DisplacementSign = 1
+    else
+        DisplacementSign = -1
+
+    console.log("displacement sign: ", Argument[DisplacementSignIndex])
+    console.log("displacement value: %s", Argument.slice(DisplacementSignIndex + 1, -1).toString(16))
+    global.DisplacementBase = Argument.slice(1, DisplacementSignIndex)
 
     console.log("displacement base: %s", global.DisplacementBase)
 
-    return { true: { value: Number(Argument.slice(DisplacementSign + 1, -1).toString(16)), IsDestinationOperand: IsDest } }
+    return { true: { value: DisplacementSign * Number(Argument.slice(DisplacementSignIndex + 1, -1).toString(16)), IsDestinationOperand: IsDest } }
 
 
 }
@@ -377,12 +404,10 @@ GetInstructionArguments = (Line) => {
         } else {
             console.log(LineElements[Element])
             if (LineElements[Element] == 'byte') {
-                global.MemoryOperation8BitBoundary = true
-            } 
-            else if(LineElements[Element] == 'word') {
-                global.MemoryOperation8BitBoundary = false
-            } 
-            else if (global.CurrentDest == undefined)
+                global.MemoryOperation16BitBoundary = false
+            } else if (LineElements[Element] == 'word') {
+                global.MemoryOperation16BitBoundary = true
+            } else if (global.CurrentDest == undefined)
                 global.CurrentDest = String(LineElements[Element])
             else
                 global.CurrentSrc = String(LineElements[Element])
@@ -428,7 +453,7 @@ GetInstructionArguments = (Line) => {
     global.ImmediateOperator = { false: 0 }
     global.Displacement = { false: 0 }
     global.ConstantValue = undefined
-    global.MemoryOperation8BitBoundary = false
+    global.MemoryOperation16BitBoundary = false
 
 
 }
