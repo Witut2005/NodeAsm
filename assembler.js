@@ -17,6 +17,7 @@ global.DisplacementBase = undefined
 global.CurrentLineNumber = 0
 global.ConstantValue = 0
 global.MemoryOperation16BitBoundary = false
+global.SegmentOverridePrefix = false
 
 RemoveOutputFile = () =>
     exec('rm output', (error, stdout, stderr) => {
@@ -130,11 +131,16 @@ class Assembler {
                 this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
                 this.FinalCpuInstruction = shrinkArray(this.FinalCpuInstruction, 2)
             } else if (this.OpcodeMode == 0 && global.ImmediateOperator.true == undefined) {
-                this.FinalCpuInstruction.length = 2;
+                this.FinalCpuInstruction.length = 2 + global.SegmentOverridePrefix != false ? 1 : 0;
                 if (!this.OpcodeDestinationBit)
                     [src, dest] = [dest, src]
-                this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
-                this.FinalCpuInstruction[1] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
+                let CurrentByte = 0
+
+                if (global.SegmentOverridePrefix != false)
+                    this.FinalCpuInstruction[CurrentByte++] = global.SegmentOverridePrefix
+
+                this.FinalCpuInstruction[CurrentByte++] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
+                this.FinalCpuInstruction[CurrentByte++] = this.OpcodeMode << 6 | RegisterName[dest] << 3 | RegisterName[src]
             } else if (global.ImmediateOperator.true != undefined) {
                 console.log('HALLO', global.ImmediateOperator.true)
                 this.FinalCpuInstruction[0] = Opcode[opcode] | this.Opcode16Bit | this.OpcodeDestinationBit
@@ -392,7 +398,14 @@ CheckIfDisplacementPresent = (Argument, IsDest) => {
 
 }
 
+CheckIfSegmentOverridePrefixPresent = (Argument) => {
+    let OverridePrefix = Argument.slice(1, Argument.indexOf(':'))
+    if (SegmentOverridePrefixValues[OverridePrefix] != undefined) {
+        return SegmentOverridePrefixValues[OverridePrefix];
+    }
+    return false;
 
+}
 
 GetInstructionArguments = (Line) => {
 
@@ -424,6 +437,12 @@ GetInstructionArguments = (Line) => {
         }
         if (isNaN(Number(global.CurrentDest)) == false)
             global.ConstantValue = Number(global.CurrentDest)
+
+        global.SegmentOverridePrefix = CheckIfSegmentOverridePrefixPresent(global.CurrentDest)
+
+        if (global.SegmentOverridePrefix)
+            CurrentDest = '[' + CurrentDest.slice(CurrentDest.indexOf(':') + 1, CurrentDest.length)
+        console.log('AHA', CurrentDest)
     }
 
     if (global.CurrentSrc != undefined) {
@@ -437,8 +456,15 @@ GetInstructionArguments = (Line) => {
         }
         if (isNaN(Number(global.CurrentSrc)) == false)
             global.ConstantValue = Number(global.CurrentSrc)
-    }
 
+        if (!global.SegmentOverridePrefix) {
+            global.SegmentOverridePrefix = CheckIfSegmentOverridePrefixPresent(global.CurrentSrc)
+
+            if (global.SegmentOverridePrefix)
+                CurrentSrc = '[' + CurrentSrc.slice(CurrentSrc.indexOf(':') + 1, CurrentSrc.length)
+            console.log('AHA', CurrentSrc)
+        }
+    }
     console.log(global.ImmediateOperator)
 
     global.CurrentLineNumber++;
@@ -454,6 +480,7 @@ GetInstructionArguments = (Line) => {
     global.Displacement = { false: 0 }
     global.ConstantValue = undefined
     global.MemoryOperation16BitBoundary = false
+    global.SegmentOverridePrefix = false
 
 
 }

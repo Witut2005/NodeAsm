@@ -50,6 +50,15 @@ RegisterNameMode2 = {
     'bx': 7
 }
 
+SegmentOverridePrefixValues = {
+    'cs': 0x2E,
+    'ss': 0x36,
+    'ds': 0x3E,
+    'es': 0x26,
+    'fs': 0x64,
+    'es': 0x65
+}
+
 
 module.exports = {
     RegisterName,
